@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <title>動的感情と逃走ボタン</title>
+    <style>
+        body {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            background-color: #f0f0f0;
+            font-family: 'Arial', sans-serif;
+            flex-direction: column;
+            user-select: none;
+            overflow: hidden; 
+        }
+        .dialog-box {
+            border: 3px solid #333;
+            padding: 15px 30px;
+            background-color: #fff;
+            box-shadow: 5px 5px 0 #333;
+            font-size: 24px;
+            font-weight: bold;
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        
+        /* --- 顔のコンテナ --- */
+        #face-box {
+            width: 120px;
+            height: 120px;
+            border: 3px solid #333;
+            border-radius: 50%;
+            background-color: #fff;
+            position: relative;
+            margin-bottom: 30px;
+            overflow: hidden;
+        }
+
+        /* --- 目と瞳 --- */
+        .eye {
+            position: absolute;
+            top: 30px;
+            width: 20px;
+            height: 20px;
+            border: 2px solid #333;
+            border-radius: 50%;
+            background-color: white;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        #left-eye { left: 25px; }
+        #right-eye { right: 25px; }
+
+        .pupil {
+            width: 8px;
+            height: 8px;
+            background-color: black;
+            border-radius: 50%;
+            transition: transform 0.1s linear; 
+        }
+
+        /* --- 口 --- */
+        #mouth {
+            position: absolute;
+            bottom: 35px; /* 45pxから35pxに修正。口の位置を下に移動 */
+            left: 50%;
+            transform: translateX(-50%);
+            width: 40px; 
+            height: 5px; 
+            background-color: #333;
+            border-radius: 0; 
+            transition: all 0.2s linear; 
+        }
+
+        /* --- ほっぺ（青ざめる表現） --- */
+        .cheek {
+            position: absolute;
+            width: 60px; 
+            height: 120px; 
+            top: 0;
+            opacity: 0; 
+            transition: opacity 0.2s linear; 
+        }
+        
+        #left-cheek { 
+            left: 0; 
+            background: radial-gradient(circle at 20% 50%, rgba(66, 170, 255, 0.7) 10%, rgba(255, 255, 255, 0) 60%);
+        }
+        #right-cheek { 
+            right: 0; 
+            background: radial-gradient(circle at 80% 50%, rgba(66, 170, 255, 0.7) 10%, rgba(255, 255, 255, 0) 60%);
+        }
+
+        /* --- ボタン共通スタイル --- */
+        .buttons-container {
+            display: flex;
+            justify-content: space-between; 
+            width: 300px;
+            position: relative;
+        }
+        .btn {
+            padding: 10px 20px;
+            font-size: 18px;
+            cursor: pointer;
+            border: 2px solid #333;
+            background-color: #eee;
+            box-shadow: 2px 2px 0 #333;
+            transition: all 0.1s;
+            z-index: 10;
+        }
+        .btn:active {
+            box-shadow: none;
+            transform: translate(2px, 2px);
+        }
+        #no-btn {
+            position: absolute; 
+            left: calc(50% + 20px); 
+            top: 0; 
+            transition: all 0.3s ease-out; 
+        }
+        #yes-btn {
+            position: absolute;
+            right: calc(50% + 20px);
+            top: 0;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="dialog-box">
+        ○○しますか？
+    </div>
+
+    <div id="face-box">
+        <div id="left-cheek" class="cheek"></div>
+        <div id="right-cheek" class="cheek"></div>
+
+        <div id="left-eye" class="eye"><div class="pupil" id="left-pupil"></div></div>
+        <div id="right-eye" class="eye"><div class="pupil" id="right-pupil"></div></div>
+
+        <div id="mouth"></div>
+    </div>
+
+    <div class="buttons-container">
+        <div id="yes-btn" class="btn" onclick="alert('はい、ありがとう！')">はい</div>
+        
+        <div id="no-btn" class="btn">いいえ</div>
+    </div>
+
+    <script>
+        const faceBox = document.getElementById('face-box');
+        const mouth = document.getElementById('mouth');
+        const leftCheek = document.getElementById('left-cheek');
+        const rightCheek = document.getElementById('right-cheek');
+        const yesButton = document.getElementById('yes-btn');
+        const noButton = document.getElementById('no-btn');
+        const leftPupil = document.getElementById('left-pupil');
+        const rightPupil = document.getElementById('right-pupil');
+
+        // 定数
+        const MAX_DIST = 150; 
+        // 笑顔の最大深度と丸み
+        const MOUTH_HAPPY_H_MAX = 18; 
+        const MOUTH_HAPPY_R = 40; 
+        
+        // 困った顔の最大深度と移動量
+        const MOUTH_NEUTRAL_H = 5; 
+        const MOUTH_SAD_H_MAX = 15; 
+        const MOUTH_SAD_R = 30;
+        const MOUTH_SAD_Y_MOVE = 5; 
+
+        // --- 1. 感情を滑らかに変化させる関数 ---
+        // この関数はニュートラルな表情に戻す時と、クリック時の笑顔の最大値を設定するために使う
+        function setFaceMood(mood) {
+            if (mood === 'neutral') {
+                // 通常 (横線)
+                mouth.style.height = `${MOUTH_NEUTRAL_H}px`;
+                mouth.style.borderRadius = '0'; 
+                mouth.style.transform = 'translateX(-50%) translateY(0)'; 
+                leftCheek.style.opacity = '0';
+                rightCheek.style.opacity = '0';
+            }
+            // happy設定はmovePupilsで動的に行うため、ここでは最大値のみ定義
+        }
+
+        // --- 2. 目の動きと動的感情の計算 ---
+        function movePupils(event) {
+            // 目の動き
+            const faceRect = faceBox.getBoundingClientRect();
+            const faceCenterX = faceRect.left + faceRect.width / 2;
+            const faceCenterY = faceRect.top + faceRect.height / 2;
+            const mouseX = event.clientX;
+            const mouseY = event.clientY;
+            const maxMove = 5; 
+            const angle = Math.atan2(mouseY - faceCenterY, mouseX - faceCenterX);
+            const moveX = maxMove * Math.cos(angle);
+            const moveY = maxMove * Math.sin(angle);
+            leftPupil.style.transform = `translate(${moveX}px, ${moveY}px)`;
+            rightPupil.style.transform = `translate(${moveX}px, ${moveY}px)`;
+            
+            // --- 3. 動的な感情の処理 ---
+            
+            const noRect = noButton.getBoundingClientRect();
+            const yesRect = yesButton.getBoundingClientRect();
+            
+            const noCenterX = noRect.left + noRect.width / 2;
+            const noCenterY = noRect.top + noRect.height / 2;
+            const yesCenterX = yesRect.left + yesRect.width / 2;
+            const yesCenterY = yesRect.top + yesRect.height / 2;
+
+            // 「いいえ」ボタンとの距離
+            const noDistance = Math.sqrt(
+                Math.pow(mouseX - noCenterX, 2) + Math.pow(mouseY - noCenterY, 2)
+            );
+            // 「はい」ボタンとの距離
+            const yesDistance = Math.sqrt(
+                Math.pow(mouseX - yesCenterX, 2) + Math.pow(mouseY - yesCenterY, 2)
+            );
+
+
+            // 「いいえ」接近時の処理 (恐怖)
+            let noProximity = 1 - Math.min(1, noDistance / MAX_DIST);
+
+            // 「はい」接近時の処理 (笑顔)
+            let yesProximity = 1 - Math.min(1, yesDistance / MAX_DIST);
+
+
+            // 感情の優先順位: いいえ > はい > ニュートラル
+
+            if (noProximity > 0.05) { // 5%以上の接近で恐怖
+                // 恐怖感情の適用
+                leftCheek.style.opacity = noProximity; 
+                rightCheek.style.opacity = noProximity;
+
+                // 口の困った顔 (口角が下がる)
+                const mouthHeight = MOUTH_NEUTRAL_H + (MOUTH_SAD_H_MAX - MOUTH_NEUTRAL_H) * noProximity;
+                const yMove = MOUTH_SAD_Y_MOVE * noProximity;
+                
+                mouth.style.height = `${mouthHeight}px`;
+                mouth.style.borderRadius = `${MOUTH_SAD_R}px ${MOUTH_SAD_R}px 0 0`; // 上向きの丸み
+                mouth.style.transform = `translateX(-50%) translateY(${yMove}px)`;
+
+            } else if (yesProximity > 0.05) { // 5%以上の接近で笑顔
+                // 笑顔の適用 (青ざめリセット)
+                leftCheek.style.opacity = 0; 
+                rightCheek.style.opacity = 0;
+
+                // 口の笑顔 (口角が上がる)
+                const mouthHeight = MOUTH_NEUTRAL_H + (MOUTH_HAPPY_H_MAX - MOUTH_NEUTRAL_H) * yesProximity;
+                
+                mouth.style.height = `${mouthHeight}px`;
+                mouth.style.borderRadius = `0 0 ${MOUTH_HAPPY_R}px ${MOUTH_HAPPY_R}px`; // 下向きの丸み
+                mouth.style.transform = 'translateX(-50%) translateY(0)';
+                
+            } else {
+                setFaceMood('neutral');
+            }
+        }
+
+        // --- 4. イベントリスナーの設定 ---
+        document.addEventListener('mousemove', movePupils);
+
+        // --- 5. 「いいえ」ボタンのランダム移動 ---
+        noButton.addEventListener('click', () => {
+            const maxX = window.innerWidth - noButton.offsetWidth;
+            const maxY = window.innerHeight - noButton.offsetHeight;
+
+            const randomX = Math.floor(Math.random() * maxX);
+            const randomY = Math.floor(Math.random() * maxY);
+
+            noButton.style.position = 'fixed'; 
+            noButton.style.left = `${randomX}px`;
+            noButton.style.top = `${randomY}px`;
+            
+            // 移動と同時に一瞬青ざめる
+            leftCheek.style.opacity = '1'; 
+            rightCheek.style.opacity = '1';
+            
+            // 口を一瞬で困り顔の最大値にする
+            mouth.style.height = `${MOUTH_SAD_H_MAX}px`;
+            mouth.style.borderRadius = `${MOUTH_SAD_R}px ${MOUTH_SAD_R}px 0 0`;
+            mouth.style.transform = `translateX(-50%) translateY(${MOUTH_SAD_Y_MOVE}px)`;
+
+            setTimeout(() => setFaceMood('neutral'), 500);
+        });
+        
+        // 「はい」ボタンはクリックでalertを出すため、mouseoutは不要
+
+        // ページロード時、初期の顔の表情を設定
+        setFaceMood('neutral');
+
+    </script>
+
+</body>
+</html>
